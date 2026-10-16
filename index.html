@@ -196,7 +196,8 @@ main{padding-block:26px 60px}
 .copy-btn{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:999px;padding:3px 11px;font-size:11.5px;font-family:inherit}
 .copy-btn:hover{color:var(--jewel);border-color:var(--jewel)}
 .memo-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px}
-.memo-acts{display:flex;gap:6px}
+.memo-acts{display:flex;gap:6px;align-items:center}
+.confirm-q{font-size:11.5px;color:var(--jewel);margin-right:2px}
 .mini-btn{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 11px;font-size:11.5px;font-family:inherit}
 .mini-btn:hover{color:var(--jewel);border-color:var(--jewel)}
 .mini-btn.del:hover{color:#c0453f;border-color:#c0453f}
@@ -301,7 +302,7 @@ main{padding-block:26px 60px}
    설정: 아래 API_URL 한 줄만 본인 앱스스크립트 웹앱 주소로 바꾸세요.
    (설정안내.md 참고)  예) 'https://script.google.com/macros/s/AKfy..../exec'
    ======================================================================= */
-const API_URL = "https://script.google.com/macros/s/AKfycbz8DvYhUaYfQMIxoK1j6RS9T05FuKPY6FnVjEEegeIUDFkYhblMeHiaCRDoK7IcjHE/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxpAKdduIBRDCqcjhZkEDnEYYTBvU19jLRtObedG_EVSg409BxV6sz_KU4TPbzXAZaN/exec";
 
 /* ---------------- 유틸 ---------------- */
 const $ = (s, r=document) => r.querySelector(s);
@@ -618,7 +619,15 @@ async function openDetail(b){
           const eb=el('button','mini-btn','수정'); eb.type='button';
           const db=el('button','mini-btn del','삭제'); db.type='button';
           eb.addEventListener('click',()=>startEdit(mw, m, txt));
-          db.addEventListener('click',()=>doDelete(m));
+          db.addEventListener('click',()=>{
+            acts.innerHTML='';
+            acts.appendChild(el('span','confirm-q','삭제할까요?'));
+            const yes=el('button','mini-btn del','삭제'); yes.type='button';
+            const no=el('button','mini-btn','취소'); no.type='button';
+            acts.appendChild(yes); acts.appendChild(no);
+            no.addEventListener('click',()=>refresh());
+            yes.addEventListener('click',()=>doDelete(m));
+          });
           acts.appendChild(eb); acts.appendChild(db);
           foot.appendChild(acts);
         }
@@ -654,7 +663,6 @@ async function openDetail(b){
 
   // 내 메모 삭제
   async function doDelete(m){
-    if(!confirm('이 메모를 삭제할까요? 되돌릴 수 없어요.')) return;
     try{
       const r=await api({action:'deleteMemo', memoId:m.memoId});
       if(r && r.ok){ toast('메모를 삭제했어요'); refresh(); }
