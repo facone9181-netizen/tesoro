@@ -1,0 +1,17 @@
+{
+  "name": "Tesoro",
+  "short_name": "Tesoro",
+  "description": "마음에 닿은 말들을 보석처럼 하나씩 골라 소중히 간직한 공간",
+  "lang": "ko",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#16111b",
+  "theme_color": "#7a2f52",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
