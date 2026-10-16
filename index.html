@@ -191,6 +191,10 @@ main{padding-block:26px 60px}
 .d-desc{font-size:13.5px;color:var(--muted);line-height:1.65;
   display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 .d-link{font-size:12.5px;color:var(--gold);text-decoration:none;align-self:flex-start;border-bottom:1px solid currentColor}
+.d-isbn{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.d-isbn b{font-weight:600;color:var(--ink);letter-spacing:.02em}
+.copy-btn{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:999px;padding:3px 11px;font-size:11.5px;font-family:inherit}
+.copy-btn:hover{color:var(--jewel);border-color:var(--jewel)}
 
 .memo-write{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:0 0 26px}
 .memo-write label{font-size:12px;letter-spacing:.2em;color:var(--gold);text-transform:uppercase}
@@ -502,6 +506,26 @@ async function openDetail(b){
   meta.appendChild(el('h1','d-title',esc(b.title)));
   const sub=[b.author,b.publisher,fmtPub(b.pubDate)].filter(Boolean).join(' · ');
   meta.appendChild(el('div','d-author',sub));
+  if(b.isbn13 && String(b.isbn13).indexOf('T:')!==0){
+    const row=el('div','d-isbn');
+    row.appendChild(el('span',null,'ISBN'));
+    const code=el('b',null,esc(b.isbn13));
+    row.appendChild(code);
+    const cp=el('button','copy-btn','복사'); cp.type='button';
+    cp.addEventListener('click',()=>{
+      const done=(t)=>{ cp.textContent=t; setTimeout(()=>cp.textContent='복사',1600); };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(String(b.isbn13)).then(()=>done('복사됨 ✓')).catch(()=>selectIsbn());
+      } else { selectIsbn(); }
+      function selectIsbn(){
+        try{ const r=document.createRange(); r.selectNodeContents(code);
+          const s=getSelection(); s.removeAllRanges(); s.addRange(r); done('길게 눌러 복사'); }
+        catch(e){ done('복사'); }
+      }
+    });
+    row.appendChild(cp);
+    meta.appendChild(row);
+  }
   if(b.description) meta.appendChild(el('div','d-desc',esc(b.description)));
   if(b.link){ const a=el('a','d-link','YES24에서 보기 ↗'); a.href=b.link; a.target='_blank'; a.rel='noopener'; meta.appendChild(a); }
   top.appendChild(meta);
