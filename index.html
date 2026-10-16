@@ -132,7 +132,7 @@ header.bar{
   border-bottom:1px solid var(--line);
 }
 .bar-in{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:13px}
-.logo{display:flex;align-items:baseline;gap:9px}
+.logo{display:flex;align-items:baseline;gap:9px;background:none;border:none;padding:0;cursor:pointer;font-family:inherit}
 .logo b{font-size:27px;font-weight:600;letter-spacing:.01em;color:var(--jewel)}
 .logo span{font-size:10px;letter-spacing:.3em;color:var(--gold)}
 .bar-actions{display:flex;gap:6px;align-items:center}
@@ -195,6 +195,13 @@ main{padding-block:26px 60px}
 .d-isbn b{font-weight:600;color:var(--ink);letter-spacing:.02em}
 .copy-btn{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:999px;padding:3px 11px;font-size:11.5px;font-family:inherit}
 .copy-btn:hover{color:var(--jewel);border-color:var(--jewel)}
+.memo-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:2px}
+.memo-acts{display:flex;gap:6px}
+.mini-btn{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 11px;font-size:11.5px;font-family:inherit}
+.mini-btn:hover{color:var(--jewel);border-color:var(--jewel)}
+.mini-btn.del:hover{color:#c0453f;border-color:#c0453f}
+.edit-area{width:100%;margin:8px 0 6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 11px;font-family:"Gowun Batang",serif;font-size:14px;line-height:1.6;resize:vertical;min-height:62px}
+.edit-bar{display:flex;gap:6px;margin-bottom:4px}
 
 .memo-write{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:0 0 26px}
 .memo-write label{font-size:12px;letter-spacing:.2em;color:var(--gold);text-transform:uppercase}
@@ -261,7 +268,7 @@ main{padding-block:26px 60px}
 <div id="app" hidden>
   <header class="bar">
     <div class="wrap bar-in">
-      <div class="logo"><b class="word">Tesoro</b><span>테소로</span></div>
+      <button type="button" class="logo" id="homeBtn" aria-label="홈으로"><b class="word">Tesoro</b><span>테소로</span></button>
       <div class="bar-actions">
         <button class="icon-btn" id="themeBtn" title="밝게/어둡게" aria-label="밝게/어둡게">◐</button>
         <button class="icon-btn" id="lockBtn" title="잠그기" aria-label="잠그기">⌧</button>
@@ -303,6 +310,15 @@ const esc = (s) => String(s==null?'':s);
 
 let PW = "";
 try { PW = sessionStorage.getItem('tesoro_pw') || ""; } catch(e){}
+let ROLE = "";
+try { ROLE = sessionStorage.getItem('tesoro_role') || ""; } catch(e){}
+// 익명 식별자: 내 기기가 남긴 메모만 수정·삭제하기 위한 랜덤 ID (화면엔 안 보임)
+let UID = "";
+try { UID = localStorage.getItem('tesoro_uid') || ""; } catch(e){}
+if(!UID){
+  UID = 'u_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+  try { localStorage.setItem('tesoro_uid', UID); } catch(e){}
+}
 
 function toast(msg){
   const t=$('#toast'); t.textContent=msg; t.classList.add('show');
@@ -315,7 +331,7 @@ function configured(){
 
 async function api(payload){
   if(!configured()) throw new Error('not_configured');
-  const body = JSON.stringify(Object.assign({ pw: PW }, payload));
+  const body = JSON.stringify(Object.assign({ pw: PW, uid: UID }, payload));
   const res = await fetch(API_URL, {
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },
@@ -343,6 +359,8 @@ const lockEl=$('#lock'), appEl=$('#app');
 
 function showApp(){
   lockEl.hidden=true; appEl.hidden=false;
+  const sb=document.querySelector('.search-block');
+  if(sb) sb.hidden = (ROLE!=='admin');   // 회원은 검색창 숨김
   loadRecommend();
 }
 function showLock(){
@@ -363,7 +381,8 @@ $('#lockForm').addEventListener('submit', async (e)=>{
   try{
     const r=await loginReq(pw);
     if(r && r.ok){
-      PW=pw; try{ sessionStorage.setItem('tesoro_pw',pw); }catch(e){}
+      PW=pw; ROLE=r.role||'member';
+      try{ sessionStorage.setItem('tesoro_pw',pw); sessionStorage.setItem('tesoro_role',ROLE); }catch(e){}
       hint.textContent=''; showApp();
     }else{
       hint.className='hint err'; hint.textContent='비밀번호가 맞지 않아요.';
@@ -381,8 +400,14 @@ async function loginReq(pw){
 }
 
 $('#lockBtn').addEventListener('click',()=>{
-  PW=''; try{ sessionStorage.removeItem('tesoro_pw'); }catch(e){}
+  PW=''; ROLE='';
+  try{ sessionStorage.removeItem('tesoro_pw'); sessionStorage.removeItem('tesoro_role'); }catch(e){}
   showLock();
+});
+
+// 로고 클릭 → 홈(목록)으로
+$('#homeBtn').addEventListener('click',()=>{
+  $('#detail').hidden=true; $('#home').hidden=false; window.scrollTo(0,0);
 });
 
 function showSetupNote(){
@@ -413,32 +438,47 @@ function bookCard(b, opts){
 }
 
 /* ---------------- 추천도서 ---------------- */
+function renderRecommend(months){
+  const box=$('#recommend');
+  if(!months || !months.length){
+    box.innerHTML='<p class="eyebrow">이달의 보석</p>'+
+      '<div class="state">아직 추천도서가 없어요.<br>구글시트 ‘추천도서’ 탭에 책을 추가하면 이곳에 나타나요.</div>';
+    return;
+  }
+  const ms=months.slice().sort((a,b)=>monthKey(b.month).localeCompare(monthKey(a.month)));
+  box.innerHTML='';
+  ms.forEach((m,idx)=>{
+    const head=el('div','section-head');
+    const left=el('div');
+    left.appendChild(el('p','eyebrow', idx===0?'이달의 보석':'지난 달의 보석'));
+    left.appendChild(el('h2',null, prettyMonth(m.month)+' 추천도서'));
+    head.appendChild(left);
+    box.appendChild(head);
+    const grid=el('div','grid');
+    m.books.forEach(b=>grid.appendChild(bookCard(b,{note:true})));
+    box.appendChild(grid);
+    if(idx<ms.length-1){ const sp=el('div'); sp.style.height='34px'; box.appendChild(sp); }
+  });
+}
+
 async function loadRecommend(){
   const box=$('#recommend');
-  box.innerHTML='<div class="state"><div class="spinner"></div>이달의 보석을 꺼내는 중…</div>';
+  // 1) 캐시가 있으면 즉시 표시(빠른 체감)
+  let cached=null;
+  try{ cached=JSON.parse(localStorage.getItem('tesoro_recommend')||'null'); }catch(e){}
+  if(cached && cached.months){ renderRecommend(cached.months); }
+  else { box.innerHTML='<div class="state"><div class="spinner"></div>이달의 보석을 꺼내는 중…</div>'; }
+  // 2) 최신 내용으로 갱신
   try{
     const r=await api({action:'recommend'});
-    if(!r || !r.ok || !r.months || !r.months.length){
-      box.innerHTML='<p class="eyebrow">이달의 보석</p>'+
-        '<div class="state">아직 추천도서가 없어요.<br>구글시트 ‘추천도서’ 탭에 책을 추가하면 이곳에 나타나요.</div>';
-      return;
+    if(r && r.ok && r.months){
+      try{ localStorage.setItem('tesoro_recommend',JSON.stringify({months:r.months})); }catch(e){}
+      renderRecommend(r.months);
+    } else if(!cached){
+      renderRecommend(null);
     }
-    box.innerHTML='';
-    r.months.sort((a,b)=>monthKey(b.month).localeCompare(monthKey(a.month)));
-    r.months.forEach((m,idx)=>{
-      const head=el('div','section-head');
-      const left=el('div');
-      left.appendChild(el('p','eyebrow', idx===0?'이달의 보석':'지난 달의 보석'));
-      left.appendChild(el('h2',null, prettyMonth(m.month)+' 추천도서'));
-      head.appendChild(left);
-      box.appendChild(head);
-      const grid=el('div','grid');
-      m.books.forEach(b=>grid.appendChild(bookCard(b,{note:true})));
-      box.appendChild(grid);
-      if(idx<r.months.length-1){ const sp=el('div'); sp.style.height='34px'; box.appendChild(sp); }
-    });
   }catch(err){
-    box.innerHTML='<p class="eyebrow">이달의 보석</p><div class="state">불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>';
+    if(!cached) box.innerHTML='<p class="eyebrow">이달의 보석</p><div class="state">불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>';
   }
 }
 // 추천월을 'YYYY-MM' 키로 정규화 (시트가 날짜로 바꿔 긴 문자열이 와도 처리)
@@ -506,28 +546,31 @@ async function openDetail(b){
   meta.appendChild(el('h1','d-title',esc(b.title)));
   const sub=[b.author,b.publisher,fmtPub(b.pubDate)].filter(Boolean).join(' · ');
   meta.appendChild(el('div','d-author',sub));
-  if(b.isbn13 && String(b.isbn13).indexOf('T:')!==0){
-    const row=el('div','d-isbn');
-    row.appendChild(el('span',null,'ISBN'));
-    const code=el('b',null,esc(b.isbn13));
-    row.appendChild(code);
-    const cp=el('button','copy-btn','복사'); cp.type='button';
-    cp.addEventListener('click',()=>{
-      const done=(t)=>{ cp.textContent=t; setTimeout(()=>cp.textContent='복사',1600); };
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(String(b.isbn13)).then(()=>done('복사됨 ✓')).catch(()=>selectIsbn());
-      } else { selectIsbn(); }
-      function selectIsbn(){
-        try{ const r=document.createRange(); r.selectNodeContents(code);
-          const s=getSelection(); s.removeAllRanges(); s.addRange(r); done('길게 눌러 복사'); }
-        catch(e){ done('복사'); }
-      }
-    });
-    row.appendChild(cp);
-    meta.appendChild(row);
+  // 관리자만 ISBN·설명·YES24 링크를 봄 (회원은 표지·제목·저자·메모만)
+  if(ROLE==='admin'){
+    if(b.isbn13 && String(b.isbn13).indexOf('T:')!==0){
+      const row=el('div','d-isbn');
+      row.appendChild(el('span',null,'ISBN'));
+      const code=el('b',null,esc(b.isbn13));
+      row.appendChild(code);
+      const cp=el('button','copy-btn','복사'); cp.type='button';
+      cp.addEventListener('click',()=>{
+        const done=(t)=>{ cp.textContent=t; setTimeout(()=>cp.textContent='복사',1600); };
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(String(b.isbn13)).then(()=>done('복사됨 ✓')).catch(()=>selectIsbn());
+        } else { selectIsbn(); }
+        function selectIsbn(){
+          try{ const r=document.createRange(); r.selectNodeContents(code);
+            const s=getSelection(); s.removeAllRanges(); s.addRange(r); done('길게 눌러 복사'); }
+          catch(e){ done('복사'); }
+        }
+      });
+      row.appendChild(cp);
+      meta.appendChild(row);
+    }
+    if(b.description) meta.appendChild(el('div','d-desc',esc(b.description)));
+    if(b.link){ const a=el('a','d-link','YES24에서 보기 ↗'); a.href=b.link; a.target='_blank'; a.rel='noopener'; meta.appendChild(a); }
   }
-  if(b.description) meta.appendChild(el('div','d-desc',esc(b.description)));
-  if(b.link){ const a=el('a','d-link','YES24에서 보기 ↗'); a.href=b.link; a.target='_blank'; a.rel='noopener'; meta.appendChild(a); }
   top.appendChild(meta);
   det.appendChild(top);
 
@@ -566,11 +609,57 @@ async function openDetail(b){
       memos.forEach((m,i)=>{
         const mw=el('div','memo');
         mw.appendChild(el('div','no','No.'+(i+1)));
-        mw.appendChild(el('div','txt',esc(m.text)));
-        if(m.ts) mw.appendChild(el('div','meta',esc(m.ts)));
+        const txt=el('div','txt',esc(m.text));
+        mw.appendChild(txt);
+        const foot=el('div','memo-foot');
+        foot.appendChild(el('span','meta', m.ts?esc(m.ts):''));
+        if(m.mine && m.memoId){
+          const acts=el('span','memo-acts');
+          const eb=el('button','mini-btn','수정'); eb.type='button';
+          const db=el('button','mini-btn del','삭제'); db.type='button';
+          eb.addEventListener('click',()=>startEdit(mw, m, txt));
+          db.addEventListener('click',()=>doDelete(m));
+          acts.appendChild(eb); acts.appendChild(db);
+          foot.appendChild(acts);
+        }
+        mw.appendChild(foot);
         list.appendChild(mw);
       });
     }catch(err){ list.innerHTML='<div class="state">메모를 불러오지 못했어요.</div>'; }
+  }
+
+  // 내 메모 수정 (인라인)
+  function startEdit(mw, m, txtEl){
+    if(mw.querySelector('.edit-area')) return;
+    const ta2=el('textarea','edit-area'); ta2.value=m.text; ta2.maxLength=1000;
+    txtEl.hidden=true;
+    mw.insertBefore(ta2, txtEl.nextSibling);
+    const bar=el('div','edit-bar');
+    const sv=el('button','mini-btn','저장'); sv.type='button';
+    const cc=el('button','mini-btn','취소'); cc.type='button';
+    bar.appendChild(sv); bar.appendChild(cc);
+    mw.insertBefore(bar, ta2.nextSibling);
+    ta2.focus();
+    cc.addEventListener('click',()=>{ ta2.remove(); bar.remove(); txtEl.hidden=false; });
+    sv.addEventListener('click', async ()=>{
+      const t=ta2.value.trim(); if(!t) return;
+      sv.disabled=true; sv.textContent='저장 중…';
+      try{
+        const r=await api({action:'editMemo', memoId:m.memoId, text:t});
+        if(r && r.ok){ toast('메모를 수정했어요 ✎'); refresh(); }
+        else { toast('수정에 실패했어요.'); sv.disabled=false; sv.textContent='저장'; }
+      }catch(e){ toast('수정 중 오류가 났어요.'); sv.disabled=false; sv.textContent='저장'; }
+    });
+  }
+
+  // 내 메모 삭제
+  async function doDelete(m){
+    if(!confirm('이 메모를 삭제할까요? 되돌릴 수 없어요.')) return;
+    try{
+      const r=await api({action:'deleteMemo', memoId:m.memoId});
+      if(r && r.ok){ toast('메모를 삭제했어요'); refresh(); }
+      else { toast('삭제에 실패했어요.'); }
+    }catch(e){ toast('삭제 중 오류가 났어요.'); }
   }
 
   save.addEventListener('click', async ()=>{
